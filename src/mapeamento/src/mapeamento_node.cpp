@@ -7,7 +7,7 @@
 class Mapeamento_Node : public rclcpp::Node {
 public:
     Mapeamento_Node() : Node("mapeamento_node") {
-        mapa = std::vector<std::vector<celula>>(3, std::vector<Celula>(3));
+        mapa = std::vector<std::vector<Celula>>(3, std::vector<Celula>(3));
 
         for(int i = 0; i < 3; i++){
             for(int j = 0; j < 3; j++){
@@ -23,7 +23,7 @@ public:
 
         sub_cer_ = this->create_subscription<std_msgs::msg::String>(
             "cerebro/mapeamento", 10,
-            std::bind(&Mapeamento_Node::callback_localizacao, this, std::placeholders::_1)
+            std::bind(&Mapeamento_Node::callback_cerebro, this, std::placeholders::_1)
         );
 
         sub_loc_ = this->create_subscription<std_msgs::msg::String>(
@@ -35,14 +35,15 @@ public:
 private:
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_cer_;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sub_loc_;
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sub_cer_;
 
-    struct celula {
+    struct Celula {
         int estado;
         double lat;
         double lon;
     };
 
-    std::vector<std::vector<celula>> mapa;
+    std::vector<std::vector<Celula>> mapa;
 
     bool calcular_inicial = true;
 
@@ -93,29 +94,31 @@ private:
         ////////
 
         while(my < 0){
-            expandir(0);
+            this->expandir(0);
             my++;
         }
 
         while(my >= (int)mapa.size()){
-            expandir(1);
+            this->expandir(1);
         }
 
         while(mx < 0){
-            expandir(2);
+            this->expandir(2);
             mx++;
         }
 
         while(mx >= (int)mapa[0].size()){
-            expandir(3);
+            this->expandir(3);
         }
 
         ///////
 
-        mapa[my][mx] = estado;
+        if (mapa[my][mx].estado != -1){
+            mapa[my][mx].estado = estado;
 
-        pos_atual_y = my
-	pos_atual_x = mx;
+            pos_atual_y = my;
+	    pos_atual_x = mx;
+	}
 
         RCLCPP_INFO(this->get_logger(), "Mapa: robô em [%d, %d]", pos_atual_y, pos_atual_x);
     }
@@ -160,15 +163,15 @@ private:
                 }
                 mapa.insert(mapa.begin(), nova_linha);
                 centro_y++;
-                break;
+            	break;
             }
 
             case 1: { // Baixo
-                std::vector<Celula> nova_linha(colunas);
-                for(auto &c : nova_linha){
-                    c.estado = -1;
-                    c.lat = 0.0;
-                    c.lon = 0.0;
+            	std::vector<Celula> nova_linha(colunas);
+            	for(auto &c : nova_linha){
+            	    c.estado = -1;
+            	    c.lat = 0.0;
+             	    c.lon = 0.0;
                 }
                 mapa.push_back(nova_linha);
                 break;

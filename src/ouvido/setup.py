@@ -15,7 +15,7 @@ setup(
         'setuptools',
         'vosk',
         'sounddevice',
-        'rapidfuzz',
+        #'rapidfuzz',
         'pyyaml',
     ],
     zip_safe=True,

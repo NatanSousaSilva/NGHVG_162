@@ -3,6 +3,8 @@
 #include <sstream>
 #include <std_msgs/msg/string.hpp>
 
+#include <regex>
+
 class Cerebro_Node : public rclcpp::Node {
 public:
     Cerebro_Node() : Node("cerebro_node") {
@@ -20,14 +22,9 @@ public:
             std::bind(&Cerebro_Node::callback_llm, this, std::placeholders::_1)
         );
 
-        sub_ouv_ = this->create_subscription<std_msgs::msg::String>(
-            "ouvido/cerebro", 10,
-            std::bind(&Cerebro_Node::callback_ouvido, this, std::placeholders::_1)
-        );
-
 	sub_map_ = this->create_subscription<std_msgs::msg::String>(
 	    "mapeamento/cerebro", 10,
-            std::bind(&Cerebro_Node::callback_ouvido, this, std::placegolders::_1)
+            std::bind(&Cerebro_Node::callback_mapeamento, this, std::placeholders::_1)
 	);
 
         /*
@@ -49,111 +46,81 @@ private:
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_map_;
     // subscriptions
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sub_llm_;
-    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sub_ouv_;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sub_map_;
 
     // rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr sub_olh_;
 
-   //--------
-    void callback_llm(const std_msgs::msg::String::SharedPtr msg_llm_) {
-        std_msgs::msg::String msg; // variavel para ser enviada para um topico após tratada
-        std::string msg_str_ = msg_llm_->data; // string moldavel
-
-        if (msg_str_.empty())return;
-
-        RCLCPP_INFO(this->get_logger(), "Recebi LLM: %s", msg_str_.c_str());
-
-        if (msg_str_.find("l0-?") != std::string::npos) {
-
-            std::string msgs = msg_str_.substr(4);
-
-            if (msgs != "nao") {
-                RCLCPP_INFO(this->get_logger(), "Local encontrado: %s", msgs.c_str());
-            }
-        }
-
-        else if (msg_str_.find("c4-?") != std::string::npos) {
-            msg.data = msg_str_.substr(4);
-            pub_olh_->publish(msg); 
-
-        } 
-
-        else if (msg_str_.find("p1-?") != std::string::npos) {
-            msg.data = msg_str_.substr(4);
-            pub_boc_->publish(msg); 
-
-        }
-
-        else if (msg_str_.find("r3-?") != std::string::npos) {
-            msg.data = msg_str_.substr(4);
-            pub_boc_->publish(msg); 
-
-        }
-
-        else {
-            msg.data = msg_llm_->data;
-            pub_boc_->publish(msg);
-        }
-
-    }
-
     //--------
-    void callback_ouvido(const std_msgs::msg::String::SharedPtr msg_esc_) {
-        std::string msg_esc = msg_esc_->data;
+    void callback_llm(const std_msgs::msg::String::SharedPtr msg){
+    	std::string texto = msg->data;
 
-        if (msg_esc.find("ande") != std::string::npos ||
-            msg_esc.find("vá") != std::string::npos ||
-            msg_esc.find("ir") != std::string::npos)
+    	std_msgs::msg::String msg_saida;
+    	std_msgs::msg::String msg_llm;
+
+    	// =====
+
+    	if (std::regex_search(texto, std::regex("(ande|vá|ir)")))
+    	{
+            msg_llm.data =
+            	"Identifique o local ou instrução na frase: '" + texto +
+            	"'. Formato: 'MOV-DESTINO:_____' ou 'MOV-DESTINO:NAO'.";
+
+            pub_llm_->publish(msg_llm);
+    	}
+
+    	// =====
+
+    	else if (std::regex_search(texto, std::regex("(procure|encontre|ache)")))
+    	{
+            msg_llm.data =
+            	"Identifique um nome na frase: '" + texto +
+            	"'. Formato: 'BUSCA-NOME:_____' ou 'BUSCA-NOME:NAO'.";
+
+            pub_llm_->publish(msg_llm);
+    	}
+
+        // =====
+
+    	else if (std::regex_search(texto, std::regex("(cadastre|cadastrar|meu nome é)")))
+    	{
+            msg_llm.data =
+            	"Identifique um nome na frase: '" + texto +
+            	"'. Formato: 'CADASTRO-NOME:_____' ou 'CADASTRO-NOME:NAO'.";
+
+            pub_llm_->publish(msg_llm);
+    	}
+
+        // =====
+
+    	else if (texto.find("MOV-DESTINO:") != std::string::npos)
+    	{
+            msg_saida.data = texto.substr(13);
+            pub_olh_->publish(msg_saida);
+    	}
+        else if (texto.find("CADASTRO-NOME:") != std::string::npos)
+    	{
+            msg_saida.data = texto.substr(15);
+            pub_olh_->publish(msg_saida);
+    	}
+    	else if (texto.find("BUSCA-NOME:") != std::string::npos)
         {
-            std_msgs::msg::String msg;
-            msg.data =
-                "Identifique o local e/ou a instrução de localização dessa frase: '" +
-                msg_esc +
-                "'. Escreva nesse formato: 'l0-?_____' sendo '_____' o local/instrução "
-                "e '-' se é pergunta(p) ou ordem(o). Caso não haja local escreva 'l0-?nao'.";
+            msg_saida.data = texto.substr(12);
+            pub_boc_->publish(msg_saida);
+    	}
 
-            pub_llm_->publish(msg);
-        }
+        // =====
 
-        else if (msg_esc.find("prorcure") != std::string::npos ||
-                 msg_esc.find("encontre") != std::string::npos ||
-                 msg_esc.find("ache") != std::string::npos)
-        {
-            std_msgs::msg::String msg;
-            msg.data =
-                "Identifique se existe algum nome na frase: '" +
-                msg_esc +
-                "'. Escreva nesse formato: 'p1-?_____' sendo '_____' o nome. "
-                "Caso não haja nome escreva 'p1-?nao'.";
-
-            pub_llm_->publish(msg);
-        }
-
-        else if (msg_esc.find("cadastre") != std::string::npos ||
-                 msg_esc.find("cadastrar") != std::string::npos ||
-                 msg_esc.find("meu nome é") != std::string::npos)
-        {
-            std_msgs::msg::String msg;
-            msg.data = 
-                "Identifique se existe algum nome na frase: '" +
-                msg_esc +
-                "'. Escreva nesse formato: 'c4-?_____' sendo '_____' o nome. "
-                "Caso não haja nome escreva 'c4-?nao'.";  
-
-            pub_llm_->publish(msg);
-        }
-
-
-        else {
-            std_msgs::msg::String msg;
-            msg.data =
-                "Responda como um robô assistente para: '" +
-                msg_esc +
-                "'. Escreva no formato: 'r3-?_____' sendo '_____' a resposta.";
-
-            pub_llm_->publish(msg);
+    	else
+    	{
+            msg_saida.data = texto;
+            pub_boc_->publish(msg_saida);
         }
     }
+
+    void callback_mapeamento(const std_msgs::msg::String::SharedPtr msg) {
+        RCLCPP_INFO(this->get_logger(),"%s", msg->data.c_str());
+    }
+
 
 
     //--------

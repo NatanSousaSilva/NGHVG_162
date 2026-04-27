@@ -74,21 +74,35 @@ private:
     }
 
     void guardar_rostos() {
-        if (!nome_guardar.empty() && !caminho_guardar.empty()) {
+    	if (!nome_guardar.empty() && !caminho_guardar.empty()) {
 
-            std::ofstream file(arquivo_json, std::ios::app);
+            std::ifstream infile(arquivo_json);
+            bool existe = infile.good();
+            infile.close();
 
-            file << "{\n";
-            file << "  \"nome\": \"" << nome_guardar << "\",\n";
-            file << "  \"imagem\": \"" << caminho_guardar << "\"\n";
-            file << "}\n";
+            std::ofstream file;
+
+            if (!existe) {
+            	file.open(arquivo_json);
+            	file << "[\n";
+            } else {
+            	file.open(arquivo_json, std::ios::in | std::ios::out);
+            	file.seekp(-2, std::ios_base::end); // remove "\n]"
+            	file << ",\n";
+            }
+
+            file << "  {\n";
+            file << "    \"nome\": \"" << nome_guardar << "\",\n";
+            file << "    \"imagem\": \"" << caminho_guardar << "\"\n";
+            file << "  }\n";
+            file << "]";
 
             file.close();
 
             RCLCPP_INFO(this->get_logger(),
-                        "Rosto associado: %s -> %s",
-                        nome_guardar.c_str(),
-                        caminho_guardar.c_str());
+                    "Rosto associado: %s -> %s",
+                    nome_guardar.c_str(),
+                    caminho_guardar.c_str());
 
             nome_guardar.clear();
             caminho_guardar.clear();

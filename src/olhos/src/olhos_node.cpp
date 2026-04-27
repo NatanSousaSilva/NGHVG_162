@@ -9,6 +9,10 @@
 #include <cv_bridge/cv_bridge.hpp>
 #include <sensor_msgs/msg/image.hpp>
 
+#include <fcntl.h>
+#include <unistd.h>
+#include <termios.h>
+
 #include <string>
 #include <vector>
 
@@ -25,6 +29,12 @@ public:
         {
             RCLCPP_ERROR(this->get_logger(), "Erro ao carregar Haar Cascade!");
         }
+
+        ///////
+
+        if (!this->iniciar_serial("/dev/ttyUSB0")) {
+    	    RCLCPP_ERROR(this->get_logger(), "Falha na serial");
+	}
 
         ///////
 
@@ -82,6 +92,9 @@ private:
 
     ///////
 
+    int serial_fd;
+
+    ///////
 
     void callback_cerebro(const std_msgs::msg::String::SharedPtr msg){
         msg_cad_.data = msg->data; 
@@ -119,9 +132,8 @@ private:
                 int off_set_y = face_centro_y - centro_y;
                 int off_set_x = face_centro_x - centro_x;
 
-                msg_cen_.data = std::to_string(off_set_x) + "," +  std::to_string(off_set_y);
-                pub_pes_->publish(msg_cen_);
-
+                std::string comando = std::to_string(off_set_x) + "," + std::to_string(off_set_y) + "\n";
+                this->enviar_serial(comando);
 
                 if ((off_set_x <= 5) && (off_set_x >= -5) &&
                     (off_set_y <= 5) && (off_set_y >= -5)){
@@ -141,6 +153,43 @@ private:
             }
         }
     }
+
+    ///////
+
+    bool iniciar_serial(const std::string& porta = "/dev/ttyUSB0") {
+    	serial_fd = open(porta.c_str(), O_RDWR | O_NOCTTY);
+
+    	if (serial_fd < 0) {
+            RCLCPP_ERROR(this->get_logger(), "Erro ao abrir serial");
+            return false;
+    	}
+
+    	struct termios tty;
+    	tcgetattr(serial_fd, &tty);
+
+    	cfsetispeed(&tty, B9600);
+    	cfsetospeed(&tty, B9600);
+
+    	tty.c_cflag |= (CLOCAL | CREAD);
+    	tty.c_cflag &= ~CSIZE;
+    	tty.c_cflag |= CS8;
+    	tty.c_cflag &= ~PARENB;
+    	tty.c_cflag &= ~CSTOPB;
+    	tty.c_cflag &= ~CRTSCTS;
+
+    	tcsetattr(serial_fd, TCSANOW, &tty);
+
+    	return true;
+    }
+
+    ///////
+
+    void enviar_serial(const std::string& msg) {
+    	if (serial_fd >= 0) {
+            write(serial_fd, msg.c_str(), msg.size());
+    	}
+    }
+
 };
 
 int main(int argc, char **argv){
