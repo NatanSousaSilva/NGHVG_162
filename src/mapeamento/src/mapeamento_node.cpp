@@ -30,17 +30,36 @@ public:
             "localizacao/mapeamento", 10,
             std::bind(&Mapeamento_Node::callback_localizacao, this, std::placeholders::_1)
         );
+
+	sub_per_ = this->create_subscripion<std_msgs::msg::String>(
+	    "pernas/mapeamento", 10,
+	    std::bind(&Mapeamento_Node::callback_pernas, this, std::placeholders::_1)
+	);
+
+	RCLCPP_INFO(this->get_logger(), "Nó mapeamento inicializado com sucesso.");
+
     }
 
 private:
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_cer_;
+
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sub_loc_;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sub_cer_;
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sub_per_;
+
+    ///////
+
+    std::string local_prorcurado;
+    std::string local_cadastrar = "";
+
+    bool prorcurar_local = false;
 
     struct Celula {
+	std::string local;
         int estado;
         double lat;
         double lon;
+	double alt;
     };
 
     std::vector<std::vector<Celula>> mapa;
@@ -53,96 +72,123 @@ private:
 
     ///////
 
-    void callback_localizacao(const std_msgs::msg::String::SharedPtr msg){
-        std::string s = msg->data;
+    void callback_localizacao(const std_msgs::msg::String::SharedPtr msg) { // Formato esperado: LAT ! LON ? ALT _ SAT * ANGULO
+    	std::string s = msg->data;
 
-        size_t pos1 = s.find('!');
-        size_t pos2 = s.find('?');
-        if(pos1 == std::string::npos || pos2 == std::string::npos) return;
+    	try {
+            //  Encontra as posições de todos os delimitadores na mensagem
+            size_t p1 = s.find('!');
+            size_t p2 = s.find('?');
+            size_t p3 = s.find('_');
+            size_t p4 = s.find('*');
 
-        double lat = std::stod(s.substr(0, pos1));
-        double lon = std::stod(s.substr(pos1 + 1, pos2 - pos1 - 1));
-        int estado = std::stoi(s.substr(pos2 + 1));
+            if (p1 == std::string::npos || p2 == std::string::npos ||
+            	p3 == std::string::npos || p4 == std::string::npos) {
+            	RCLCPP_WARN(this->get_logger(), "Pacote de dados incompleto ou malformado.");
+            	return;
+            }
 
-        if(calcular_inicial){
-            mapa[centro_y][centro_x].lat = lat;
-            mapa[centro_y][centro_x].lon = lon;
+            // Extrair e converte os dados
+            double lat = std::stod(s.substr(0, p1));
+            double lon = std::stod(s.substr(p1 + 1, p2 - p1 - 1));
+            double alt = std::stod(s.substr(p2 + 1, p3 - p2 - 1));
+            double angulo = std::stod(s.substr(p3 + 1));
 
-            calcular_inicial = false;
-            RCLCPP_INFO(this->get_logger(), "Origem definida.");
-            return;
-        }
+            if (calcular_inicial) {
+                if (lat != 0.0 && lon != 0.0) {
+                    mapa[centro_y][centro_x].lat = lat;
+                    mapa[centro_y][centro_x].lon = lon;
+		    mapa[centro_y][centro_x].alt = alt
 
-        ///////
+                    calcular_inicial = false;
+                    RCLCPP_INFO(this->get_logger(), "Origem definida: Lat %f, Lon %f", lat, lon);
+            	}
+            	return;
+            }
 
-        double deg2rad = M_PI / 180.0;
-        double dLat = (lat - mapa[centro_y][centro_x].lat) * deg2rad;
-        double dLon = (lon - mapa[centro_y][centro_x].lon) * deg2rad;
+            	RCLCPP_DEBUG(this->get_logger(), "Alt: %.2fm, Sat: %d, Ang: %.2f", altitude, satelites, angulo);
 
-        double r = 6378137.0;
-        double y = dLat * r;
-        double x = dLon * r * cos(mapa[centro_y][centro_x].lat * deg2rad);
+       	    } catch (const std::exception &e) {
+            	RCLCPP_ERROR(this->get_logger(), "Erro ao converter dados: %s", e.what());
+    	    }
 
-        ///////
+            ///////
 
-        int cel_x = static_cast<int>(std::round(x / tamanho_celula));
-        int cel_y = static_cast<int>(std::round(y / tamanho_celula));
+            double deg2rad = M_PI / 180.0;
+            double dLat = (lat - mapa[centro_y][centro_x].lat) * deg2rad;
+            double dLon = (lon - mapa[centro_y][centro_x].lon) * deg2rad;
 
-        int mx = centro_x + cel_x;
-        int my = centro_y + cel_y;
+            double r = 6378137.0;
+            double y = dLat * r;
+            double x = dLon * r * cos(mapa[centro_y][centro_x].lat * deg2rad);
 
-        ////////
+            ///////
 
-        while(my < 0){
-            this->expandir(0);
-            my++;
-        }
+            int cel_x = static_cast<int>(std::round(x / tamanho_celula));
+            int cel_y = static_cast<int>(std::round(y / tamanho_celula));
 
-        while(my >= (int)mapa.size()){
-            this->expandir(1);
-        }
+            int mx = centro_x + cel_x;
+            int my = centro_y + cel_y;
 
-        while(mx < 0){
-            this->expandir(2);
-            mx++;
-        }
+            ////////
 
-        while(mx >= (int)mapa[0].size()){
-            this->expandir(3);
-        }
+            while(my < 0){
+            	this->expandir(0);
+            	my++;
+            }
 
-        ///////
+            while(my >= (int)mapa.size()){
+            	this->expandir(1);
+            }
 
-        if (mapa[my][mx].estado != -1){
-            mapa[my][mx].estado = estado;
+            while(mx < 0){
+            	this->expandir(2);
+            	mx++;
+            }
 
-            pos_atual_y = my;
-	    pos_atual_x = mx;
+            while(mx >= (int)mapa[0].size()){
+            	this->expandir(3);
+            }
+
+            ///////
+
+            if (mapa[my][mx].estado != -1){
+            	mapa[my][mx].estado = estado;
+		mapa[my][mx].lat = lat;
+		mapa[my][mx].lon = lon;
+		mapa[my][mx].alt = alt;
+
+            	pos_atual_y = my;
+	    	pos_atual_x = mx;
+	    }
+
+            RCLCPP_INFO(this->get_logger(), "Mapa: robô em [%d, %d]", pos_atual_y, pos_atual_x);
 	}
-
-        RCLCPP_INFO(this->get_logger(), "Mapa: robô em [%d, %d]", pos_atual_y, pos_atual_x);
     }
 
     ///////
 
-    void callback_cerebro(const std_msgs::msg::String::SharedPtr msg){ //?0_n para andar em "tal" direção (n == norte) |||  !0000000 retornar a dsitancia da posição
+    void callback_pernas(const std_msgs::msg::String::SharedPtr msg){
+	std::string local = msg->data;
+
+	for (int i = 0; i < (sizeof(mapa) / sizeof(mapa[0])); i++){
+	    for (int j = 0; j < (sizeof(mapa[0]) / sizeof(mapa[0][0]); j++){
+		if (mapa[i][j].local == local){
+		    
+		}
+	    }
+	}
+    }
+
+    void callback_cerebro(const std_msgs::msg::String::SharedPtr msg){
         std::string s = msg->data;
 
-        size_t pos_andar = s.find("?");
-        size_t pos_dist = s.find("!");
+        if(s.find("?") != std::string::npos){
+            local_prorcurado = s.substr(2);
+	    prorcurar_lugar = true;
 
-        if(pos_andar != std::string::npos){
-            size_t pos_direcao = s.find("_");
-
-            double distancia = std::stod(
-                s.substr(1, pos_direcao - 1));
-
-            int dis_celula = std::round(distancia / tamanho_celula);
-
-            char direcao = s[pos_direcao + 1];
-
-        }else if(pos_dist != std::string::npos){
-            RCLCPP_INFO(this->get_logger(), "Comando de distancia recebido");
+        }else if(s.find("!") != std::string::npos){
+            local_cadastrar = s.substr(2);
         }
     }
 

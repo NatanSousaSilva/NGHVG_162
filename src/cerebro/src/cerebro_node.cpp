@@ -11,10 +11,11 @@ public:
 
         // publishers
         pub_llm_ = this->create_publisher<std_msgs::msg::String>("cerebro/llm", 10);
-        pub_des_ = this->create_publisher<std_msgs::msg::String>("cerebro/localizacao", 10);
+        pub_loc_ = this->create_publisher<std_msgs::msg::String>("cerebro/localizacao", 10);
         pub_boc_ = this->create_publisher<std_msgs::msg::String>("cerebro/boca", 10);
         pub_olh_ = this->create_publisher<std_msgs::msg::String>("cerebro/olhos", 10);
 	pub_map_ = this->create_publisher<std_msgs::msg::String>("cerebro/mapeamento", 10);
+	pub_per_ = this->create_publisher<std_msgs::msg::String>("cerebro/pernas", 10);
 
         // subscriptions
         sub_llm_ = this->create_subscription<std_msgs::msg::String>(
@@ -27,13 +28,7 @@ public:
             std::bind(&Cerebro_Node::callback_mapeamento, this, std::placeholders::_1)
 	);
 
-        /*
-        sub_olh_ = this->create_subscription<sensor_msgs::msg::Image>(
-            "olhos/cerebro", 10,
-            std::bind(&Cerebro_Node::callback_olhos, this, std::placeholders::_1)
-        );*/
-
-        RCLCPP_INFO(this->get_logger(), "Nó brain inicializado com sucesso.");
+        RCLCPP_INFO(this->get_logger(), "Nó cerebro inicializado com sucesso.");
     }
 
 private:
@@ -44,6 +39,8 @@ private:
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_boc_;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_olh_;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_map_;
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_per_;
+
     // subscriptions
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sub_llm_;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sub_map_;
@@ -59,19 +56,17 @@ private:
 
     	// =====
 
-    	if (std::regex_search(texto, std::regex("(ande|vá|ir)")))
-    	{
+    	if (std::regex_search(texto, std::regex("(ande|vá|ir)"))){
             msg_llm.data =
             	"Identifique o local ou instrução na frase: '" + texto +
-            	"'. Formato: 'MOV-DESTINO:_____' ou 'MOV-DESTINO:NAO'.";
+            	"'. Formato: 'MOV-DESTINO:_____' ou 'MOV-DESTINO:NAO'. Caso seja uma instrução de andar medidas coloque nesse formato: 'MOV-DISTANCIA:valor_/[direcao]' onde '/' é o simbolo da medida. ";
 
             pub_llm_->publish(msg_llm);
     	}
 
     	// =====
 
-    	else if (std::regex_search(texto, std::regex("(procure|encontre|ache)")))
-    	{
+    	else if (std::regex_search(texto, std::regex("(procure|encontre|ache)"))){
             msg_llm.data =
             	"Identifique um nome na frase: '" + texto +
             	"'. Formato: 'BUSCA-NOME:_____' ou 'BUSCA-NOME:NAO'.";
@@ -81,8 +76,7 @@ private:
 
         // =====
 
-    	else if (std::regex_search(texto, std::regex("(cadastre|cadastrar|meu nome é)")))
-    	{
+    	else if (std::regex_search(texto, std::regex("(cadastre|cadastrar|meu nome é)"))){
             msg_llm.data =
             	"Identifique um nome na frase: '" + texto +
             	"'. Formato: 'CADASTRO-NOME:_____' ou 'CADASTRO-NOME:NAO'.";
@@ -92,26 +86,32 @@ private:
 
         // =====
 
-    	else if (texto.find("MOV-DESTINO:") != std::string::npos)
-    	{
-            msg_saida.data = texto.substr(13);
-            pub_olh_->publish(msg_saida);
+    	else if (texto.find("MOV-") != std::string::npos){
+            if (texto.find("DESTINO:") != std::string::nops){
+		msg_saida.data = "*" + texto.substr(13);
+		pub_per_->publish(msg_saida);
+	    }
+
+	    else if (texto.find("DISTANCIA:") != std::string::nops) {
+	    	msg_saida.data = texto.substr(15);
+		pub_per_->publish(msg_saida);
+            }
+
     	}
-        else if (texto.find("CADASTRO-NOME:") != std::string::npos)
-    	{
+
+        else if (texto.find("CADASTRO-NOME:") != std::string::npos){
             msg_saida.data = texto.substr(15);
             pub_olh_->publish(msg_saida);
     	}
-    	else if (texto.find("BUSCA-NOME:") != std::string::npos)
-        {
+
+    	else if (texto.find("BUSCA-NOME:") != std::string::npos){
             msg_saida.data = texto.substr(12);
             pub_boc_->publish(msg_saida);
     	}
 
         // =====
 
-    	else
-    	{
+    	else{
             msg_saida.data = texto;
             pub_boc_->publish(msg_saida);
         }

@@ -12,13 +12,16 @@ public:
     Localizacao_Node() : Node("localizacao_node") {
         this->iniciar_serial();
 
-        pub_map_ = this->create_publisher<std_msgs::msg::String>("localizacao/map", 10);
+        pub_map_ = this->create_publisher<std_msgs::msg::String>("localizacao/mapeamento", 10);
 
         sub_cer_ = this->create_subscription<std_msgs::msg::String>(
             "cerebro/localizacao", 10,
             std::bind(&Localizacao_Node::callback_cerebro, this, std::placeholders::_1)
         );
 
+	thread_leitura = std::thread(&Localizacao_Node::ler_serial, this);
+
+	RCLCPP_INFO(this->get_logger(), "Nó localizacao inicializado com sucesso.");
     }
 
 private:
@@ -40,12 +43,16 @@ private:
     void ler_serial(){
         char buffer[256];
 
-        while (true){
-            int n = read(serial_fd, buffer, sizeof(buffer) - 1);
+        while (rclcpp::ok()){
+            int d = read(serial_fd, buffer, sizeof(buffer) - 1);
 
-            if (n > 0){
-                buffer[n] = '\0';
-                std::cout << buffer;
+            if (d > 0){
+                std::string dados_lidos(buffer, d);
+
+            	auto msg = std_msgs::msg::String();
+            	msg.data = dados_lidos;
+
+		pub_map_.publish(msg);
             }
         }
 

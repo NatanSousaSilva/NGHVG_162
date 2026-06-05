@@ -36,7 +36,7 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr sub1_olh_;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sub2_olh_;
 
-    std::string pasta = "memoria";
+    std::string pasta = "memoria(db)";
     fs::path arquivo_json = "memoria/nomes.json";
 
     std::string nome_guardar;
