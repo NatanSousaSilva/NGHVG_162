@@ -10,10 +10,10 @@ using json = nlohmann::json;
 class Llm_Node : public rclcpp::Node {
 public:
     Llm_Node() : Node("llm_ia_node") {
-
+	// publishers
         pub_cer_ = this->create_publisher<std_msgs::msg::String>("llm/cerebro", 10);
-	//pub_ouv_ = this->create_publisher<std_msgs::msg::String>("llm/ouvido", 10);
 
+	// subscriptions
         sub_cer_ = this->create_subscription<std_msgs::msg::String>(
             "cerebro/llm", 10,
             std::bind(&Llm_Node::callback_cerebro, this, std::placeholders::_1)
@@ -28,7 +28,6 @@ public:
 
 private:
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_cer_;
-    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_ouv_;
 
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sub_cer_;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sub_ouv_;

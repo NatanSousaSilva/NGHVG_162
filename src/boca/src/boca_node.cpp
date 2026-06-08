@@ -11,6 +11,7 @@ public:
         pasta = std::string(std::getenv("HOME")) + "/audio";
         std::filesystem::create_directories(pasta);
 
+	// subscriptions
         sub_cer_ = this->create_subscription<std_msgs::msg::String>(
             "cerebro/boca", 10,
             std::bind(&Boca_Node::callback_audio, this, std::placeholders::_1)
@@ -23,12 +24,6 @@ private:
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sub_cer_;
 
     std::string pasta;
-
-    static size_t write_data(void *ptr, size_t size, size_t nmemb, void *stream) {
-        std::ofstream *out = static_cast<std::ofstream*>(stream);
-        out->write(reinterpret_cast<char*>(ptr), size * nmemb);
-        return size * nmemb;
-    }
 
     void callback_audio(const std_msgs::msg::String::SharedPtr msg) {
         std::string arquivo = pasta + "/audio_" +std::to_string(std::time(nullptr)) + ".wav";
@@ -48,12 +43,16 @@ private:
         std::string texto = msg->data;
 
         char* escaped = curl_easy_escape(curl, texto.c_str(), texto.size());
-        std::string url = "http://127.0.0.1:8000/br?texto=" + std::string(escaped);
+        std::string url = "http://127.0.0.1:8000/boca?texto=" + std::string(escaped);
         curl_free(escaped);
 
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &file);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, +[](void *ptr, size_t size, size_t nmemb, void *stream) -> size_t {
+	    std::ofstream *out = static_cast<std::ofstream*>(stream);
+	    out->write(reinterpret_cast<char*>(ptr), size * nmemb);
+	    return size * nmemb;
+	});
 
         CURLcode res = curl_easy_perform(curl);
 
