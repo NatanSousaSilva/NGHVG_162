@@ -47,7 +47,6 @@ private:
         curl_free(escaped);
 
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, +[](void *ptr, size_t size, size_t nmemb, void *stream) -> size_t {
 	    std::ofstream *out = static_cast<std::ofstream*>(stream);
 	    out->write(reinterpret_cast<char*>(ptr), size * nmemb);

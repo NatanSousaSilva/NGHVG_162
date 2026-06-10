@@ -35,7 +35,7 @@ private:
 
     // publishers
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_llm_;
-    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_des_;
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_loc_;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_boc_;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_olh_;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_map_;
@@ -87,12 +87,12 @@ private:
         // =====
 
     	else if (texto.find("MOV-") != std::string::npos){
-            if (texto.find("DESTINO:") != std::string::nops){
+            if (texto.find("DESTINO:") != std::string::npos){
 		msg_saida.data = "*" + texto.substr(13);
 		pub_per_->publish(msg_saida);
 	    }
 
-	    else if (texto.find("DISTANCIA:") != std::string::nops) {
+	    else if (texto.find("DISTANCIA:") != std::string::npos) {
 	    	msg_saida.data = texto.substr(15);
 		pub_per_->publish(msg_saida);
             }
