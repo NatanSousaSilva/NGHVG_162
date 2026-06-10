@@ -43,7 +43,7 @@ private:
         std::string texto = msg->data;
 
         char* escaped = curl_easy_escape(curl, texto.c_str(), texto.size());
-        std::string url = "http://127.0.0.1:8000/boca?texto=" + std::string(escaped);
+        std::string url = "http://127.0.0.1:8000/api_boca?texto=" + std::string(escaped);
         curl_free(escaped);
 
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());

@@ -79,8 +79,28 @@ private:
 
         if (!indata) return;
 
+        const int16_t* samples = static_cast<const int16_t*>(indata);
+            
+        double soma_quadrados = 0;
+        for (unsigned long i = 0; i < frames; ++i) {
+            soma_quadrados += samples[i] * samples[i];
+        }
+        double rms = std::sqrt(soma_quadrados / frames);
+        double limite_silencio = 500.0; 
+
+        if (rms < limite_silencio) {
+            RCLCPP_INFO(this->get_logger(), "Silêncio... (Volume: %f)", rms);
+            return; 
+        }
+
+        RCLCPP_INFO(this->get_logger(), "Barulho detectado! (Volume: %f) Enviando...", rms);
+
+        size_count_bytes = frames * sizeof(int16_t);
+
+
+
         const char* audio_bytes = static_cast<const char*>(indata);
-        size_t bytes_count = frames * sizeof(int16_t); // Cada frame int16_t tem 2 bytes
+        size_t bytes_count = frames * sizeof(int16_t);
 
         CURL *curl = curl_easy_init();
         if (!curl) {
@@ -123,13 +143,13 @@ private:
                 auto json_response = nlohmann::json::parse(response_string);
 
         	if (json_response.contains("texto")) {
-            	std::string texto_puro = json_response["texto"];
+            	    std::string texto_puro = json_response["texto"];
 
-            	RCLCPP_INFO(this->get_logger(), "Texto extraído da API: %s", texto_puro.c_str());
+            	    RCLCPP_INFO(this->get_logger(), "Texto extraído da API: %s", texto_puro.c_str());
 
-            	auto msg = std_msgs::msg::String();
-            	msg.data = texto_puro;
-            	pub_llm_->publish(msg);
+            	    auto msg = std_msgs::msg::String();
+            	    msg.data = texto_puro;
+            	    pub_llm_->publish(msg);
 
 		} else {
             	    RCLCPP_WARN(this->get_logger(), "Chave 'texto' não encontrada no JSON. Enviando resposta bruta.");
